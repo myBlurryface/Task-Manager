@@ -172,3 +172,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Additional
+.DS_Store
+.idea
+celerybeat-schedule.db

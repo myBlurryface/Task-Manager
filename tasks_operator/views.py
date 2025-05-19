@@ -13,7 +13,7 @@ from .serializers import (
 )
 
 
-class TasksCreateView(APIView):
+class TasksCreateOrGetListOfTasksView(APIView):
 
     @extend_schema(
         tags=["Single task operations"],
@@ -99,6 +99,75 @@ class TasksCreateView(APIView):
         except Exception as e:
             return Response(data={"Error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+    @extend_schema(
+        tags=["Group if tasks operations"],
+        summary="Get list of users tasks by tg_user_id",
+        parameters=[
+            OpenApiParameter(
+                name="telegram_user_id",
+                description="Specify filter for database for telegram user id. ",
+                required=True,
+                type=int,
+                examples=[
+                    OpenApiExample(
+                        name="Telegram user id",
+                        description="Retrieve templates for user with this telegram id.",
+                        value=4456588577
+                    ),
+                ]
+            )
+        ],
+        responses={
+            200: OpenApiResponse(
+                response=list[dict],
+                description="Returns all tasks for specified user.",
+                examples=[
+                    OpenApiExample(
+                        "Success Example",
+                        [
+                            {
+                                "tg_user_id": "4456588577",
+                                "title": "Call me later.",
+                                "description": "This task reminds me to call someone later.",
+                                "deadline": "2025-05-17T12:00:00Z",
+                                "status": True,
+                            },
+                            {
+                                "tg_user_id": "4456588577",
+                                "title": "Call me later, Sally.",
+                                "description": "This task reminds me, that Sally should call me later.",
+                                "deadline": "2025-05-18T12:00:00Z",
+                                "status": True,
+                            },
+                        ]
+                    )
+                ],
+            ),
+            400: OpenApiResponse(
+                response=dict,
+                description="Additional errors, that can occur during operations with database.",
+                examples=[
+                    OpenApiExample(
+                        "General type error",
+                        value={"Error": "Error getting list of tasks"}
+                    )
+                ],
+            ),
+        },
+    )
+    def get(self, request: Request) -> Response:
+        serializer = GetUserTasksListSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+
+        tg_user_id = serializer.validated_data.get("telegram_user_id")
+
+        try:
+            tasks_list = UserTasks.objects.filter(tg_user_id=tg_user_id)
+            response_tasks_list = TasksResponseSerializer(tasks_list, many=True)
+            return Response(response_tasks_list.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(data={"Error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class GetAndPatchSingleTaskView(APIView):
 
@@ -106,7 +175,7 @@ class GetAndPatchSingleTaskView(APIView):
         tags=["Single task operations"],
         summary="Get a single task by ID",
         responses={
-            200: OpenApiResponse(
+            201: OpenApiResponse(
                 response={
                     "type": "object",
                     "properties": {
@@ -193,77 +262,5 @@ class GetAndPatchSingleTaskView(APIView):
             task.save()
             text_task_status = "done" if task.status is False else "undone"
             return Response(data=f"Task with id = {task.id} now {text_task_status}.", status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response(data={"Error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class GetListOfUsersTasksView(APIView):
-
-    @extend_schema(
-        tags=["Group if tasks operations"],
-        summary="Get list of users tasks by tg_user_id",
-        parameters=[
-            OpenApiParameter(
-                name="telegram_user_id",
-                description="Specify filter for database for telegram user id. ",
-                required=True,
-                type=int,
-                examples=[
-                    OpenApiExample(
-                        name="Telegram user id",
-                        description="Retrieve templates for user with this telegram id.",
-                        value=4456588577
-                    ),
-                ]
-            )
-        ],
-        responses={
-            200: OpenApiResponse(
-                response=list[dict],
-                description="Returns all tasks for specified user.",
-                examples=[
-                    OpenApiExample(
-                        "Success Example",
-                        [
-                            {
-                                "tg_user_id": "4456588577",
-                                "title": "Call me later.",
-                                "description": "This task reminds me to call someone later.",
-                                "deadline": "2025-05-17T12:00:00Z",
-                                "status": True,
-                            },
-                            {
-                                "tg_user_id": "4456588577",
-                                "title": "Call me later, Sally.",
-                                "description": "This task reminds me, that Sally should call me later.",
-                                "deadline": "2025-05-18T12:00:00Z",
-                                "status": True,
-                            },
-                        ]
-                    )
-                ],
-            ),
-            400: OpenApiResponse(
-                response=dict,
-                description="Additional errors, that can occur during operations with database.",
-                examples=[
-                    OpenApiExample(
-                        "General type error",
-                        value={"Error": "Error getting list of tasks"}
-                    )
-                ],
-            ),
-        },
-    )
-    def get(self, request: Request) -> Response:
-        serializer = GetUserTasksListSerializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-
-        tg_user_id = serializer.validated_data.get("telegram_user_id")
-
-        try:
-            tasks_list = UserTasks.objects.filter(tg_user_id=tg_user_id)
-            response_tasks_list = TasksResponseSerializer(tasks_list, many=True)
-            return Response(response_tasks_list.data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(data={"Error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

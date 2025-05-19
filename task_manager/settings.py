@@ -137,4 +137,4 @@ CELERY_TIMEZONE = 'Europe/Minsk'
 CELERY_ENABLE_UTC = False
 
 # storage for celery tasks ids
-REDIS_CLIENT_CELERY_TASKS = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=3)
+REDIS_CLIENT_CELERY_TASKS = redis.Redis(host=REDIS_HOST, port=int(REDIS_PORT), db=3)

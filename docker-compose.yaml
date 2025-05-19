@@ -1,0 +1,99 @@
+services:
+  bot:
+    build: ../Tasks-Notification-Bot
+    command: python poling_bot.py
+    ports:
+      - "8443:8443"
+    env_file:
+      - .env
+    networks:
+      - task-manager-network
+
+  redis:
+    image: redis:7
+    networks:
+      - task-manager-network
+    depends_on:
+      - bot
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  db:
+    image: postgres:15
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - task-manager-network
+    depends_on:
+      - bot
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  task-manager:
+    build: .
+    command: bash -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000" 
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    networks:
+      - task-manager-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      bot:
+        condition: service_started
+
+  celery:
+    build: .
+    command: celery -A task_manager.celery worker  --loglevel=info
+    env_file:
+      - .env
+    networks:
+      - task-manager-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      task-manager:
+        condition: service_started
+      bot:
+        condition: service_started
+
+  celery_beat:
+    build: .
+    command: celery -A task_manager.celery beat -l info
+    env_file:
+      - .env
+    networks:
+      - task-manager-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      task-manager:
+        condition: service_started
+      bot:
+        condition: service_started
+    volumes:
+      - celery_beat_data:/app
+
+networks:
+  task-manager-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  celery_beat_data:
